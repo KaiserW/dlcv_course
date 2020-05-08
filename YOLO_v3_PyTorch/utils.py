@@ -1,5 +1,36 @@
 import torch 
 import numpy as np
+import cv2
+
+
+
+def get_input_img(img_dir, img_size):
+    
+    img = cv2.imread(img_dir)
+    
+    # 获取图片高和宽，通道用_代替
+    h, w, _ = img.shape
+
+    # 高宽的差
+    dim_diff = np.abs(h-w)
+
+    # pad1, pad2分别是两侧（上下或左右）的填充距离
+    pad1, pad2 = dim_diff // 2, dim_diff - dim_diff // 2
+    pad = ((pad1, pad2), (0,0), (0,0)) if h < w else ((0,0), (pad1, pad2), (0,0))
+    
+    # 用灰色(128)填充图片
+    pad_img = np.pad(img, pad, "constant", constant_values=128)
+    ori_img = pad_img[:,:,::-1]
+    
+    # 调整尺寸为416x416，并将通道维度前置
+    img_ = cv2.resize(ori_img, (img_size, img_size))
+    img_ = img_.transpose((2,0,1))
+    
+    # 添加维度batch，并对图片归一化，转换为torch.tensor格式
+    img_ = img_[np.newaxis,:,:,:] / 255.0
+    img_ = torch.from_numpy(img_).float()
+    
+    return img_, ori_img
 
 
 def bbox_iou(box1, box2):
@@ -135,6 +166,7 @@ def bbox_nms(pred, obj_conf=0.5, nms_thres=0.4):
         
         # 如果没有非零confidence（图里没检测到东西）
         if bbox_det.shape[0] == 0:
+            output = torch.tensor([])
             continue
         
         # image_det[:,-1]: -1列为最大概率对应类别（0-19）
